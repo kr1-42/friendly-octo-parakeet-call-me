@@ -23,7 +23,9 @@ def parse_state(partial: str, functions: list[dict]) -> dict:
     return {"partial": partial}
 
 
-def is_valid_continuation(candidate: str, functions: list[dict], schema_state: dict) -> bool:
+def is_valid_continuation(
+    candidate: str, functions: list[dict], schema_state: dict
+) -> bool:
     """
     Very permissive validator. Let the model generate freely.
     Only reject truly invalid patterns.
@@ -43,17 +45,17 @@ def is_valid_continuation(candidate: str, functions: list[dict], schema_state: d
 
     # For incomplete JSON, almost always accept
     # Just reject the most obvious errors
-    if not candidate.startswith('{'):
+    if not candidate.startswith("{"):
         return False
 
     # Basic bracket balance check
-    if candidate.count('{') <= candidate.count('}'):
+    if candidate.count("{") <= candidate.count("}"):
         return False
-    if candidate.count('[') < candidate.count(']'):
+    if candidate.count("[") < candidate.count("]"):
         return False
 
     # Reject multiple root objects
-    if '}{' in candidate or '} {' in candidate:
+    if "}{" in candidate or "} {" in candidate:
         return False
 
     # Accept everything else - let model generate
@@ -61,10 +63,7 @@ def is_valid_continuation(candidate: str, functions: list[dict], schema_state: d
 
 
 def get_valid_token_ids(
-    partial: str,
-    vocab: dict[int, str],
-    functions: list[dict],
-    schema_state: dict
+    partial: str, vocab: dict[int, str], functions: list[dict], schema_state: dict
 ) -> set[int]:
     """
     Given what we've generated so far, return the set of token IDs
@@ -82,7 +81,7 @@ def generate_function_call(
     prompt: str,
     functions: list[dict],
     vocab: dict[int, str],
-    max_tokens: int = 200
+    max_tokens: int = 200,
 ) -> dict:
     """
     Runs constrained decoding to generate a valid function call JSON.
@@ -100,7 +99,6 @@ def generate_function_call(
         logits = model.get_logits_from_input_ids(input_ids + generated_ids)
         logits = list(logits)
 
-        # No constraint - just use argmax
         next_id = int(np.argmax(logits))
         next_token = vocab[next_id]
 
@@ -113,27 +111,33 @@ def generate_function_call(
         # Search for all possible JSON objects in the generated text
         start_idx = 0
         while True:
-            open_brace = partial_json.find('{', start_idx)
+            open_brace = partial_json.find("{", start_idx)
             if open_brace < 0:
                 break
 
             # Try all closing braces after this opening brace
-            close_brace = partial_json.find('}', open_brace)
+            close_brace = partial_json.find("}", open_brace)
             while close_brace >= 0:
                 try:
-                    candidate = partial_json[open_brace:close_brace+1]
+                    candidate = partial_json[open_brace: close_brace + 1]
                     result = json.loads(candidate)
 
                     # Check if it's valid for our use case
-                    if isinstance(result, dict) and "name" in result and "parameters" in result:
+                    if (
+                        isinstance(result, dict)
+                        and "name" in result
+                        and "parameters" in result
+                    ):
                         func_names = {fn["name"] for fn in functions}
                         if result["name"] in func_names:
-                            print(f"[GEN] ✓ Found valid JSON at step {step}: {result['name']}")
+                            print(
+                                f"[GEN] ✓ Found valid JSON at step {step}: {result['name']}"
+                            )
                             return result
                 except (json.JSONDecodeError, ValueError):
                     pass
 
-                close_brace = partial_json.find('}', close_brace + 1)
+                close_brace = partial_json.find("}", close_brace + 1)
 
             start_idx = open_brace + 1
 
