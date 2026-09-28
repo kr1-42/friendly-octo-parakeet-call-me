@@ -1,46 +1,86 @@
 [
   {
     "prompt": "What is the sum of 2 and 3?",
-    "error": "CUDA error: out of memory\nSearch for `cudaErrorMemoryAllocation' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.\nCUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.\nFor debugging consider passing CUDA_LAUNCH_BLOCKING=1\nCompile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.\n"
+    "name": "fn_add_numbers",
+    "parameters": {
+      "a": 2,
+      "b": 3
+    }
   },
   {
     "prompt": "What is the sum of 265 and 345?",
-    "error": "CUDA error: out of memory\nSearch for `cudaErrorMemoryAllocation' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.\nCUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.\nFor debugging consider passing CUDA_LAUNCH_BLOCKING=1\nCompile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.\n"
+    "name": "fn_add_numbers",
+    "parameters": {
+      "a": 265,
+      "b": 345
+    }
   },
   {
     "prompt": "Greet shrek",
-    "error": "CUDA error: out of memory\nSearch for `cudaErrorMemoryAllocation' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.\nCUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.\nFor debugging consider passing CUDA_LAUNCH_BLOCKING=1\nCompile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.\n"
+    "name": "fn_greet",
+    "parameters": {
+      "name": "shrek"
+    }
   },
   {
     "prompt": "Greet john",
-    "error": "CUDA error: out of memory\nSearch for `cudaErrorMemoryAllocation' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.\nCUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.\nFor debugging consider passing CUDA_LAUNCH_BLOCKING=1\nCompile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.\n"
+    "name": "fn_greet",
+    "parameters": {
+      "name": "john"
+    }
   },
   {
     "prompt": "Reverse the string 'hello'",
-    "error": "CUDA out of memory. Tried to allocate 298.00 MiB. GPU 0 has a total capacity of 3.63 GiB of which 74.06 MiB is free. Process 961375 has 3.30 GiB memory in use. Including non-PyTorch memory, this process has 56.00 MiB memory in use. Of the allocated memory 0 bytes is allocated by PyTorch, and 0 bytes is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)"
+    "name": "fn_reverse_string",
+    "parameters": {
+      "s": "hello"
+    }
   },
   {
     "prompt": "Reverse the string 'world'",
-    "error": "CUDA out of memory. Tried to allocate 298.00 MiB. GPU 0 has a total capacity of 3.63 GiB of which 74.06 MiB is free. Process 961375 has 3.30 GiB memory in use. Including non-PyTorch memory, this process has 56.00 MiB memory in use. Of the allocated memory 0 bytes is allocated by PyTorch, and 0 bytes is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)"
+    "name": "fn_reverse_string",
+    "parameters": {
+      "s": "world"
+    }
   },
   {
     "prompt": "What is the square root of 16?",
-    "error": "CUDA out of memory. Tried to allocate 298.00 MiB. GPU 0 has a total capacity of 3.63 GiB of which 74.06 MiB is free. Process 961375 has 3.30 GiB memory in use. Including non-PyTorch memory, this process has 56.00 MiB memory in use. Of the allocated memory 0 bytes is allocated by PyTorch, and 0 bytes is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)"
+    "name": "fn_get_square_root",
+    "parameters": {
+      "a": 16
+    }
   },
   {
     "prompt": "Calculate the square root of 144",
-    "error": "CUDA out of memory. Tried to allocate 298.00 MiB. GPU 0 has a total capacity of 3.63 GiB of which 74.06 MiB is free. Process 961375 has 3.30 GiB memory in use. Including non-PyTorch memory, this process has 56.00 MiB memory in use. Of the allocated memory 0 bytes is allocated by PyTorch, and 0 bytes is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)"
+    "name": "fn_get_square_root",
+    "parameters": {
+      "a": 144
+    }
   },
   {
     "prompt": "Replace all numbers in \"Hello 34 I'm 233 years old\" with NUMBERS",
-    "error": "CUDA out of memory. Tried to allocate 298.00 MiB. GPU 0 has a total capacity of 3.63 GiB of which 74.06 MiB is free. Process 961375 has 3.30 GiB memory in use. Including non-PyTorch memory, this process has 56.00 MiB memory in use. Of the allocated memory 0 bytes is allocated by PyTorch, and 0 bytes is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)"
+    "name": "fn_add_numbers",
+    "parameters": {
+      "a": 34,
+      "b": 233
+    }
   },
   {
     "prompt": "Replace all vowels in 'Programming is fun' with asterisks",
-    "error": "CUDA out of memory. Tried to allocate 298.00 MiB. GPU 0 has a total capacity of 3.63 GiB of which 74.06 MiB is free. Process 961375 has 3.30 GiB memory in use. Including non-PyTorch memory, this process has 56.00 MiB memory in use. Of the allocated memory 0 bytes is allocated by PyTorch, and 0 bytes is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)"
+    "name": "fn_substitute_string_with_regex",
+    "parameters": {
+      "source_string": "Programming is fun",
+      "regex": "([aeiouAEIOU])",
+      "replacement": "*"
+    }
   },
   {
     "prompt": "Substitute the word 'cat' with 'dog' in 'The cat sat on the mat with another cat'",
-    "error": "CUDA out of memory. Tried to allocate 298.00 MiB. GPU 0 has a total capacity of 3.63 GiB of which 74.06 MiB is free. Process 961375 has 3.30 GiB memory in use. Including non-PyTorch memory, this process has 56.00 MiB memory in use. Of the allocated memory 0 bytes is allocated by PyTorch, and 0 bytes is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)"
+    "name": "fn_substitute_string_with_regex",
+    "parameters": {
+      "source_string": "The cat sat on the mat with another cat",
+      "regex": "cat",
+      "replacement": "dog"
+    }
   }
 ]
