@@ -12,7 +12,7 @@ build:
 	--functions_definition data/input/functions_definition.json \
 	--input data/input/function_calling_tests.json \
 	--output data/output/function_calls.json \
-	--workers 1
+	--workers 2
 
 lint:
 	flake8 .
