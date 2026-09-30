@@ -1,6 +1,7 @@
 import json
 import numpy as np
 from llm_sdk import Small_LLM_Model
+import threading
 
 
 _BYTE_DECODER: dict[str, int] | None = None
@@ -136,7 +137,7 @@ def generate_function_call(
     """
     # Build prompt that tells the model what functions exist
     system = build_prompt(prompt, functions)
-    print(f"[GEN] Starting generation for: {prompt[:60]}...")
+    print(f"[GEN] Starting generation for: {prompt[:60]}...\n by[TID]{threading.get_ident()}")
     input_ids = model.encode(system)[0].tolist()  # flatten tensor to list
 
     generated_ids = []
@@ -179,7 +180,7 @@ def generate_function_call(
                         func_names = {fn["name"] for fn in functions}
                         if result["name"] in func_names:
                             print(
-                                f"[GEN] ✓ Found valid JSON at step {step}: {result['name']}"
+                                f"[GEN] ✓ Found valid JSON at step {step}: {result['name']} \nfound by[TID]{threading.get_ident()}"
                             )
                             return result
                 except (json.JSONDecodeError, ValueError):
