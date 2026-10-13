@@ -76,7 +76,8 @@ def load_json_file(path: str) -> list:
 def main() -> None:
     parser = argparse.ArgumentParser(description="LLM function calling")
     parser.add_argument(
-        "--functions_definition", default="data/input/functions_definition.json"
+        "--functions_definition", default="data/input/functions_definition.json",
+        required=True
     )
     parser.add_argument("--input", default="data/input/function_calling_tests.json")
     parser.add_argument("--output", default="data/output/function_calls.json")
