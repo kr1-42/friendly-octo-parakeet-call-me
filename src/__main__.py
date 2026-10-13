@@ -5,7 +5,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from llm_sdk import Small_LLM_Model as bob
-from . import generator
+from src import generator
 
 
 def load_vocab(model: bob) -> dict[int, str]:
@@ -37,7 +37,8 @@ def process_item(
     prompt = item["prompt"]
 
     try:
-        result = generator.generate_function_call(model, prompt, functions, vocab)
+        result = generator.generate_function_call(model,
+                                                  prompt, functions, vocab)
         print(f"[TID {threading.get_ident()}] ✓ {prompt[:50]}")
         return {
             "prompt": prompt,
@@ -45,7 +46,8 @@ def process_item(
             "parameters": result["parameters"],
         }
     except Exception as e:
-        print(f"[TID {threading.get_ident()}] ✗ {prompt[:50]} → {e}", file=sys.stderr)
+        print(f"[TID {threading.get_ident()}] ✗ {prompt[:50]} → {e}",
+              file=sys.stderr)
         return {"prompt": prompt, "error": str(e)}
 
 
@@ -76,10 +78,12 @@ def load_json_file(path: str) -> list:
 def main() -> None:
     parser = argparse.ArgumentParser(description="LLM function calling")
     parser.add_argument(
-        "--functions_definition", default="data/input/functions_definition.json",
-        required=True
+        "--functions_definition",
+        default="data/input/functions_definition.json",
+        required=True,
     )
-    parser.add_argument("--input", default="data/input/function_calling_tests.json")
+    parser.add_argument("--input",
+                        default="data/input/function_calling_tests.json")
     parser.add_argument("--output", default="data/output/function_calls.json")
     parser.add_argument("--workers", type=int, default=1)
     args = parser.parse_args()
@@ -107,7 +111,8 @@ def main() -> None:
     with open(args.output, "w") as f:
         json.dump(all_results, f, indent=2)
 
-    print(f"Done. {len(all_results)}/{len(prompts)} results written to {args.output}")
+    print(f"Done. {len(all_results)}/{len(prompts)}"
+          f" results written to {args.output}")
 
 
 if __name__ == "__main__":

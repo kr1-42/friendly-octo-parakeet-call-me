@@ -9,7 +9,8 @@ _BYTE_DECODER: dict[str, int] | None = None
 
 def _build_byte_decoder() -> dict[str, int]:
     """
-    Inverse of GPT-2/Qwen's byte-to-unicode map used by tokenizer.json vocab entries.
+    Inverse of GPT-2/Qwen's byte-to-unicode map used
+      by tokenizer.json vocab entries.
 
     Byte-level BPE stores each of the 256 raw byte values as one printable
     unicode character so the vocab is safe to embed in JSON (e.g. a literal
@@ -65,7 +66,8 @@ def build_prompt(prompt: str, functions: list[dict]) -> str:
 def parse_state(partial: str, functions: list[dict]) -> dict:
     """
     Returns a dict describing where we are in the JSON generation.
-    e.g. {"phase": "name"} or {"phase": "param_value", "param": "a", "fn": "fn_add_numbers"}
+    e.g. {"phase": "name"} or
+    {"phase": "param_value", "param": "a", "fn": "fn_add_numbers"}
     """
     # TODO: implement — for now just return the partial
     return {"partial": partial}
@@ -111,7 +113,8 @@ def is_valid_continuation(
 
 
 def get_valid_token_ids(
-    partial: str, vocab: dict[int, str], functions: list[dict], schema_state: dict
+    partial: str, vocab: dict[int, str],
+    functions: list[dict], schema_state: dict
 ) -> set[int]:
     """
     Given what we've generated so far, return the set of token IDs
@@ -137,7 +140,10 @@ def generate_function_call(
     """
     # Build prompt that tells the model what functions exist
     system = build_prompt(prompt, functions)
-    print(f"[GEN] Starting generation for: {prompt[:60]}...\n by[TID]{threading.get_ident()}")
+    print(
+        f"[GEN] Starting generation for: {prompt[:60]}"
+        f"...\n by[TID]{threading.get_ident()}"
+    )
     input_ids = model.encode(system)[0].tolist()  # flatten tensor to list
 
     generated_ids = []
@@ -180,7 +186,9 @@ def generate_function_call(
                         func_names = {fn["name"] for fn in functions}
                         if result["name"] in func_names:
                             print(
-                                f"[GEN] ✓ Found valid JSON at step {step}: {result['name']} \nfound by[TID]{threading.get_ident()}"
+                                f"[GEN] ✓ Found valid JSON at step {step}:"
+                                f" {result['name']} \nfound by"
+                                f"[TID]{threading.get_ident()}"
                             )
                             return result
                 except (json.JSONDecodeError, ValueError):
@@ -195,4 +203,4 @@ def generate_function_call(
             print(f"[GEN] ✗ Exceeded 800 chars at step {step}")
             raise ValueError("Generated too much text without valid JSON")
 
-    raise ValueError(f"Failed to generate valid JSON after {max_tokens} tokens")
+    raise ValueError(f"Failed to generate valid JSON after {max_tokens} token")
