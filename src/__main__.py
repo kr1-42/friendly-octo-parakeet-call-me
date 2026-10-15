@@ -40,6 +40,7 @@ def process_item(
         result = generator.generate_function_call(model,
                                                   prompt, functions, vocab)
         print(f"[TID {threading.get_ident()}] ✓ {prompt[:50]}")
+        print(result["parameters"])
         return {
             "prompt": prompt,
             "name": result["name"],
@@ -103,6 +104,7 @@ def main() -> None:
             process_item, functions=functions, model=model, vocab=vocab
         )
         all_results = list(executor.map(process_fn, prompts))
+    print(all_results)
 
     # preserve original order
     prompt_order = {item["prompt"]: i for i, item in enumerate(prompts)}
