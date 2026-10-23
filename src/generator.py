@@ -2,6 +2,7 @@ import json
 import numpy as np
 from llm_sdk import Small_LLM_Model
 import threading
+from typing import Any
 
 
 _BYTE_DECODER: dict[str, int] | None = None
@@ -51,19 +52,26 @@ def decode_token(token: str) -> str:
             raw_bytes.extend(ch.encode("utf-8"))
     return raw_bytes.decode("utf-8", errors="ignore")
 
+IM_START = "<|im_start|>"
+IM_END = "<|im_end|>"
+# Qwen3's way to switch thinking off: a pre-closed, empty block.
+EMPTY_THINK = "<think>\n\n</think>\n\n"
 
-def build_prompt(prompt: str, functions: list[dict]) -> str:
+def build_prompt(prompt: str, functions: list[dict[str, Any]]) -> str:
     fns = json.dumps(functions, indent=2)
     return (
-        f"You are a function calling assistant.\n"
+        f"{IM_START}You are a function calling assistant.\n"
         f"Available functions:\n{fns}\n\n"
         f"User request: {prompt}\n\n"
         f"Respond with ONLY a JSON object in this exact format:\n"
-        f'{{"name": "<function_name>", "parameters": {{<args>}}}}\n'
-    )
+        f'{{"name": "<function_name>", "parameters": {{<args>}}}}{IM_END}\n'
+        f"{EMPTY_THINK}"
+        )
 
 
-def parse_state(partial: str, functions: list[dict]) -> dict:
+def parse_state(
+    partial: str, functions: list[dict[str, Any]]
+) -> dict[str, Any]:
     """
     Returns a dict describing where we are in the JSON generation.
     e.g. {"phase": "name"} or
@@ -74,7 +82,9 @@ def parse_state(partial: str, functions: list[dict]) -> dict:
 
 
 def is_valid_continuation(
-    candidate: str, functions: list[dict], schema_state: dict
+    candidate: str,
+    functions: list[dict[str, Any]],
+    schema_state: dict[str, Any],
 ) -> bool:
     """
     Very permissive validator. Let the model generate freely.
@@ -114,7 +124,7 @@ def is_valid_continuation(
 
 def get_valid_token_ids(
     partial: str, vocab: dict[int, str],
-    functions: list[dict], schema_state: dict
+    functions: list[dict[str, Any]], schema_state: dict[str, Any]
 ) -> set[int]:
     """
     Given what we've generated so far, return the set of token IDs
@@ -130,10 +140,10 @@ def get_valid_token_ids(
 def generate_function_call(
     model: Small_LLM_Model,
     prompt: str,
-    functions: list[dict],
+    functions: list[dict[str, Any]],
     vocab: dict[int, str],
     max_tokens: int = 200,
-) -> dict:
+) -> dict[str, Any]:
     """
     Runs constrained decoding to generate a valid function call JSON.
     Returns {"name": ..., "parameters": {...}}
@@ -146,7 +156,7 @@ def generate_function_call(
     )
     input_ids = model.encode(system)[0].tolist()  # flatten tensor to list
 
-    generated_ids = []
+    generated_ids: list[int] = []
     partial_json = ""
     result = None
 

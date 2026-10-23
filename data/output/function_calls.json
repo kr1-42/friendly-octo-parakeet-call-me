@@ -1,9 +1,9 @@
 [
   {
-    "prompt": "Greet shrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrekshrek",
+    "prompt": "Greet corneliusskebebnikoselterzerodecataluna",
     "name": "fn_greet",
     "parameters": {
-      "name": "shrek"
+      "name": "corneliusskebebnikoselterzerodecataluna"
     }
   },
   {
@@ -43,11 +43,7 @@
   },
   {
     "prompt": "Replace all numbers in \"Hello 34 I'm 233 years old\" with NUMBERS",
-    "name": "fn_add_numbers",
-    "parameters": {
-      "a": 34,
-      "b": 233
-    }
+    "error": "Failed to generate valid JSON after 200 token"
   },
   {
     "prompt": "Replace all vowels in 'Programming is fun' with asterisks",

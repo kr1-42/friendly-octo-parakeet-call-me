@@ -1,5 +1,5 @@
 [project]
-name = "llm-sdk"
+name = "src"
 version = "0.1.0"
 description = "LLM SDK for local model inference"
 requires-python = ">=3.10"

@@ -2,6 +2,7 @@ import argparse
 import json
 import sys
 import threading
+import typing
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from llm_sdk import Small_LLM_Model as bob
@@ -27,8 +28,11 @@ def load_vocab(model: bob) -> dict[int, str]:
 
 
 def process_item(
-    item: dict, functions: list[dict], model: bob, vocab: dict[int, str]
-) -> dict:
+    item: dict[str, typing.Any],
+    functions: list[dict[str, typing.Any]],
+    model: bob,
+    vocab: dict[int, str],
+) -> dict[str, typing.Any]:
     """Process a single item. ThreadPoolExecutor will handle parallelization.
 
     model/vocab are shared across threads — threads (unlike processes) share
@@ -52,10 +56,10 @@ def process_item(
         return {"prompt": prompt, "error": str(e)}
 
 
-def split_into_chunks(lst: list, n: int) -> list[list]:
+def split_into_chunks(lst: list[typing.Any], n: int) -> list[list[typing.Any]]:
     """Split list into n roughly equal chunks."""
     k, remainder = divmod(len(lst), n)
-    chunks = []
+    chunks: list[list[typing.Any]] = []
     start = 0
     for i in range(n):
         end = start + k + (1 if i < remainder else 0)
@@ -64,7 +68,7 @@ def split_into_chunks(lst: list, n: int) -> list[list]:
     return chunks
 
 
-def load_json_file(path: str) -> list:
+def load_json_file(path: str) -> typing.Any:
     try:
         with open(path, "r") as f:
             return json.load(f)
