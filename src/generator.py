@@ -1,8 +1,11 @@
 import json
-import numpy as np
-from llm_sdk import Small_LLM_Model
+import re
 import threading
-from typing import Any
+from typing import Any, Callable
+
+import numpy as np
+import numpy.typing as npt
+from llm_sdk import Small_LLM_Model
 
 
 _BYTE_DECODER: dict[str, int] | None = None
@@ -52,89 +55,244 @@ def decode_token(token: str) -> str:
             raw_bytes.extend(ch.encode("utf-8"))
     return raw_bytes.decode("utf-8", errors="ignore")
 
+
 IM_START = "<|im_start|>"
 IM_END = "<|im_end|>"
 # Qwen3's way to switch thinking off: a pre-closed, empty block.
 EMPTY_THINK = "<think>\n\n</think>\n\n"
 
+MAX_STRING_TOKENS = 64
+MAX_NUMBER_TOKENS = 24
+_SPECIAL_RE = re.compile(r"^<\|.*\|>$|^</?(think|tool_call|tool_response)>$")
+_NUMBER_PREFIX_RE = re.compile(r"^-?\d*\.?\d*$")
+_NUMBER_RE = re.compile(r"^-?\d+(\.\d+)?$")
+
+# Token tables are built once per vocab and shared by all worker threads.
+_TABLES: dict[int, dict[str, Any]] = {}
+_TABLES_LOCK = threading.Lock()
+
+
 def build_prompt(prompt: str, functions: list[dict[str, Any]]) -> str:
-    fns = json.dumps(functions, indent=2)
-    return (
-        f"{IM_START}You are a function calling assistant.\n"
-        f"Available functions:\n{fns}\n\n"
-        f"User request: {prompt}\n\n"
-        f"Respond with ONLY a JSON object in this exact format:\n"
-        f'{{"name": "<function_name>", "parameters": {{<args>}}}}{IM_END}\n'
-        f"{EMPTY_THINK}"
+    """
+    Short chat-formatted prompt: every prompt token is re-processed on each
+    decoding step, so a compact function list directly saves time.
+    """
+    lines = []
+    for fn in functions:
+        params = ", ".join(
+            f"{name}: {spec.get('type', 'string')}"
+            for name, spec in fn.get("parameters", {}).items()
         )
+        lines.append(
+            f"- {fn['name']}({params}): {fn.get('description', '')}"
+        )
+    fns = "\n".join(lines)
+    return (
+        f"{IM_START}system\n"
+        f"You are a function calling assistant. Pick the function that "
+        f"answers the user request and extract its arguments.\n"
+        f"Functions:\n{fns}\n"
+        f'Answer as JSON: {{"name": ..., "parameters": {{...}}}}{IM_END}\n'
+        f"{IM_START}user\n{prompt}{IM_END}\n"
+        f"{IM_START}assistant\n{EMPTY_THINK}"
+    )
 
 
-def parse_state(
-    partial: str, functions: list[dict[str, Any]]
-) -> dict[str, Any]:
+def _get_tables(vocab: dict[int, str]) -> dict[str, Any]:
     """
-    Returns a dict describing where we are in the JSON generation.
-    e.g. {"phase": "name"} or
-    {"phase": "param_value", "param": "a", "fn": "fn_add_numbers"}
+    Decode every vocab entry once and precompute boolean masks of which
+    tokens are allowed in each JSON position (string body, number, ...).
     """
-    # TODO: implement — for now just return the partial
-    return {"partial": partial}
+    key = id(vocab)
+    with _TABLES_LOCK:
+        if key in _TABLES:
+            return _TABLES[key]
+        size = max(vocab) + 1
+        texts = [""] * size
+        special = np.zeros(size, dtype=bool)
+        for tid, raw in vocab.items():
+            texts[tid] = decode_token(raw)
+            special[tid] = bool(_SPECIAL_RE.match(raw))
+        nonempty = np.array([t != "" for t in texts]) & ~special
+        string_body = nonempty & np.array(
+            ['"' not in t and "\n" not in t for t in texts]
+        )
+        string_end = nonempty & np.array([t.startswith('"') for t in texts])
+        number_body = nonempty & np.array(
+            [all(c in "0123456789.-" for c in t) for t in texts]
+        )
+        number_end = nonempty & np.array(
+            [t.lstrip().startswith((",", "}")) for t in texts]
+        )
+        text_to_ids: dict[str, list[int]] = {}
+        for tid, text in enumerate(texts):
+            if nonempty[tid]:
+                text_to_ids.setdefault(text, []).append(tid)
+        table = {
+            "texts": texts,
+            "string_body": string_body,
+            "string_end": string_end,
+            "number_body": number_body,
+            "number_end": number_end,
+            "text_to_ids": text_to_ids,
+        }
+        _TABLES[key] = table
+        return table
 
 
-def is_valid_continuation(
-    candidate: str,
-    functions: list[dict[str, Any]],
-    schema_state: dict[str, Any],
-) -> bool:
-    """
-    Very permissive validator. Let the model generate freely.
-    Only reject truly invalid patterns.
-    """
-    if not candidate:
-        return True
+def _pad(mask: npt.NDArray[np.bool_], size: int) -> npt.NDArray[np.bool_]:
+    """The model's logit vector can be longer than the vocab file."""
+    if len(mask) >= size:
+        return mask[:size]
+    return np.concatenate([mask, np.zeros(size - len(mask), dtype=bool)])
 
-    # Try to parse as complete JSON first
+
+def _pick(
+    logits: npt.NDArray[np.float32],
+    mask: npt.NDArray[np.bool_],
+    texts: list[str],
+    accept: Callable[[str], bool] | None = None,
+) -> int:
+    """
+    Constrained greedy choice: best-scoring token among those allowed by
+    `mask` (others are treated as -inf) that also passes `accept`.
+    """
+    allowed = np.flatnonzero(_pad(mask, len(logits)))
+    if len(allowed) == 0:
+        raise ValueError("No valid token for current schema position")
+    if accept is None:
+        return int(allowed[np.argmax(logits[allowed])])
+    for tid in allowed[np.argsort(-logits[allowed])]:
+        if accept(texts[tid]):
+            return int(tid)
+    raise ValueError("No valid token for current schema position")
+
+
+def _force(model: Small_LLM_Model, ids: list[int], text: str) -> None:
+    """Append fixed JSON structure without asking the model."""
+    ids.extend(model.encode(text)[0].tolist())
+
+
+def _logits(model: Small_LLM_Model, ids: list[int]) -> npt.NDArray[np.float32]:
+    return np.asarray(model.get_logits_from_input_ids(ids), dtype=np.float32)
+
+
+def _common_prefix(words: list[str]) -> str:
+    prefix = words[0]
+    for w in words[1:]:
+        while not w.startswith(prefix):
+            prefix = prefix[:-1]
+    return prefix
+
+
+def _choose_name(
+    model: Small_LLM_Model,
+    ids: list[int],
+    names: list[str],
+    table: dict[str, Any],
+) -> str:
+    """
+    Let the model pick the function name, restricted to tokens that keep
+    the text a prefix of some real function name. Shared prefixes (e.g.
+    "fn_") are forced, so the model is only queried where names diverge.
+    """
+    text_to_ids = table["text_to_ids"]
+    texts = table["texts"]
+    chosen = ""
+    while True:
+        remaining = [n for n in names if n.startswith(chosen)]
+        if chosen in remaining and len(remaining) == 1:
+            return chosen
+        common = _common_prefix(remaining)
+        if len(common) > len(chosen):
+            _force(model, ids, common[len(chosen):])
+            chosen = common
+            continue
+        mask = np.zeros(len(texts), dtype=bool)
+        for name in remaining:
+            rest = name[len(chosen):]
+            for k in range(1, len(rest) + 1):
+                for tid in text_to_ids.get(rest[:k], []):
+                    mask[tid] = True
+        if chosen in remaining:
+            # Allow stopping here when a name is a prefix of another.
+            mask |= table["string_end"]
+        tid = _pick(_logits(model, ids), mask, texts)
+        piece = texts[tid]
+        if piece.startswith('"'):
+            return chosen
+        ids.append(tid)
+        chosen += piece
+
+
+def _gen_string(
+    model: Small_LLM_Model, ids: list[int], table: dict[str, Any]
+) -> str:
+    """Generate a JSON string body; the opening quote is already forced."""
+    texts = table["texts"]
+    mask = table["string_body"] | table["string_end"]
+    out = ""
+    for _ in range(MAX_STRING_TOKENS):
+        tid = _pick(_logits(model, ids), mask, texts)
+        piece = texts[tid]
+        escaped = (len(out) - len(out.rstrip("\\"))) % 2 == 1
+        if piece.startswith('"') and not escaped:
+            break
+        if piece.startswith('"'):
+            # \" is a quote inside the string, not its end.
+            _force(model, ids, '"')
+            out += '"'
+            continue
+        ids.append(tid)
+        out += piece
     try:
-        obj = json.loads(candidate)
-        if isinstance(obj, dict) and "name" in obj and "parameters" in obj:
-            func_names = {fn["name"] for fn in functions}
-            return obj["name"] in func_names
-        return False
+        value: str = json.loads(f'"{out}"')
+        return value
     except json.JSONDecodeError:
-        pass
-
-    # For incomplete JSON, almost always accept
-    # Just reject the most obvious errors
-    if not candidate.startswith("{"):
-        return False
-
-    # Basic bracket balance check
-    if candidate.count("{") <= candidate.count("}"):
-        return False
-    if candidate.count("[") < candidate.count("]"):
-        return False
-
-    # Reject multiple root objects
-    if "}{" in candidate or "} {" in candidate:
-        return False
-
-    # Accept everything else - let model generate
-    return True
+        return out
 
 
-def get_valid_token_ids(
-    partial: str, vocab: dict[int, str],
-    functions: list[dict[str, Any]], schema_state: dict[str, Any]
-) -> set[int]:
-    """
-    Given what we've generated so far, return the set of token IDs
-    that are valid to generate next.
+def _gen_number(
+    model: Small_LLM_Model,
+    ids: list[int],
+    table: dict[str, Any],
+    integer: bool,
+) -> int | float:
+    """Generate digits (and '.'/'-' for floats) until the model ends it."""
+    texts = table["texts"]
+    out = ""
+    for _ in range(MAX_NUMBER_TOKENS):
+        complete = bool(_NUMBER_RE.match(out))
+        mask = table["number_body"]
+        if complete:
+            mask = mask | table["number_end"]
 
-    For now, return all tokens - let the model generate freely and we'll
-    catch valid JSON when it appears.
-    """
-    # Return all token IDs - no constraint
-    return set(vocab.keys())
+        def accept(piece: str, out: str = out) -> bool:
+            if piece.lstrip().startswith((",", "}")):
+                return True
+            cand = out + piece
+            if integer and "." in cand:
+                return False
+            return bool(_NUMBER_PREFIX_RE.match(cand))
+
+        tid = _pick(_logits(model, ids), mask, texts, accept)
+        piece = texts[tid]
+        if piece.lstrip().startswith((",", "}")):
+            break
+        ids.append(tid)
+        out += piece
+    if not _NUMBER_RE.match(out):
+        out = out.rstrip(".") or "0"
+        if out in ("-", ""):
+            out = "0"
+    return int(float(out)) if integer else float(out)
+
+
+def _gen_bool(model: Small_LLM_Model, ids: list[int]) -> bool:
+    logits = _logits(model, ids)
+    t_id = model.encode("true")[0].tolist()[0]
+    f_id = model.encode("false")[0].tolist()[0]
+    return bool(logits[t_id] >= logits[f_id])
 
 
 def generate_function_call(
@@ -142,75 +300,50 @@ def generate_function_call(
     prompt: str,
     functions: list[dict[str, Any]],
     vocab: dict[int, str],
-    max_tokens: int = 200,
 ) -> dict[str, Any]:
     """
     Runs constrained decoding to generate a valid function call JSON.
     Returns {"name": ..., "parameters": {...}}
+
+    The JSON skeleton is forced token by token; the model is only queried
+    to choose the function name and to fill in each parameter value, with
+    invalid tokens masked out according to the parameter's type.
     """
-    # Build prompt that tells the model what functions exist
-    system = build_prompt(prompt, functions)
+    if not functions:
+        raise ValueError("No functions defined")
+    table = _get_tables(vocab)
     print(
         f"[GEN] Starting generation for: {prompt[:60]}"
         f"...\n by[TID]{threading.get_ident()}"
     )
-    input_ids = model.encode(system)[0].tolist()  # flatten tensor to list
+    ids = model.encode(build_prompt(prompt, functions))[0].tolist()
+    prompt_len = len(ids)
 
-    generated_ids: list[int] = []
-    partial_json = ""
-    result = None
+    _force(model, ids, '{"name": "')
+    names = [fn["name"] for fn in functions]
+    name = _choose_name(model, ids, names, table)
+    fn = next(f for f in functions if f["name"] == name)
 
-    for step in range(max_tokens):
-        logits = model.get_logits_from_input_ids(input_ids + generated_ids)
-        logits = list(logits)
+    params: dict[str, Any] = {}
+    _force(model, ids, '", "parameters": {')
+    for i, (key, spec) in enumerate(fn.get("parameters", {}).items()):
+        sep = ", " if i else ""
+        ptype = spec.get("type", "string")
+        if ptype == "integer":
+            _force(model, ids, f'{sep}"{key}": ')
+            params[key] = _gen_number(model, ids, table,
+                                      ptype == "integer")
+        elif ptype in ("number", "boolean"):
+            _force(model, ids, f'{sep}"{key}": ')
+            params[key] = _gen_bool(model, ids)
+            _force(model, ids, json.dumps(params[key]))
+        else:
+            _force(model, ids, f'{sep}"{key}": "')
+            params[key] = _gen_string(model, ids, table)
+            _force(model, ids, '"')
 
-        next_id = int(np.argmax(logits))
-        next_token = decode_token(vocab[next_id])
-
-        generated_ids.append(next_id)
-        partial_json += next_token
-
-        if step % 20 == 0:
-            print(f"[GEN] Step {step}: generated {len(partial_json)} chars")
-
-        # Search for all possible JSON objects in the generated text
-        start_idx = 0
-        while True:
-            open_brace = partial_json.find("{", start_idx)
-            if open_brace < 0:
-                break
-
-            # Try all closing braces after this opening brace
-            close_brace = partial_json.find("}", open_brace)
-            while close_brace >= 0:
-                try:
-                    candidate = partial_json[open_brace: close_brace + 1]
-                    result = json.loads(candidate)
-
-                    # Check if it's valid for our use case
-                    if (
-                        isinstance(result, dict)
-                        and "name" in result
-                        and "parameters" in result
-                    ):
-                        func_names = {fn["name"] for fn in functions}
-                        if result["name"] in func_names:
-                            print(
-                                f"[GEN] ✓ Found valid JSON at step {step}:"
-                                f" {result['name']} \nfound by"
-                                f"[TID]{threading.get_ident()}"
-                            )
-                            return result
-                except (json.JSONDecodeError, ValueError):
-                    pass
-
-                close_brace = partial_json.find("}", close_brace + 1)
-
-            start_idx = open_brace + 1
-
-        # Stop if too much text without finding valid JSON
-        if len(partial_json) > 800:
-            print(f"[GEN] ✗ Exceeded 800 chars at step {step}")
-            raise ValueError("Generated too much text without valid JSON")
-
-    raise ValueError(f"Failed to generate valid JSON after {max_tokens} token")
+    print(
+        f"[GEN] ✓ {name} ({len(ids) - prompt_len} tokens)"
+        f" by[TID]{threading.get_ident()}"
+    )
+    return {"name": name, "parameters": params}
